@@ -1,4 +1,3 @@
-
 import os
 import glob
 import streamlit as st
@@ -142,8 +141,32 @@ if user_prompt:
     with st.chat_message("assistant"):
         with st.spinner("กำลังค้นหาข้อมูลจากคลังท่องเที่ยว 20 จังหวัดอีสาน..."):
             try:
+                # ตรวจสอบรายชื่อโมเดลที่บัญชีนี้สามารถใช้งานได้จริง ณ ปัจจุบัน
+                available_models = [
+                    m.id for m in groq_client.models.list().data 
+                    if "whisper" not in m.id and "guard" not in m.id and "vision" not in m.id
+                ]
+                
+                # ลำดับความสำคัญในการเลือกโมเดล (เลือกตัวที่ยังเปิดบริการอยู่และมีในบัญชี)
+                priority_list = [
+                    "llama-3.3-70b-versatile",
+                    "llama-3.1-8b-instant",
+                    "qwen/qwen3.8-27b",
+                    "mixtral-8x7b-32768"
+                ]
+                
+                selected_model = None
+                for candidate in priority_list:
+                    if candidate in available_models:
+                        selected_model = candidate
+                        break
+                
+                # หากไม่ตรงกับในรายการด้านบน ให้ดึงโมเดลแชตตัวแรกสุดที่บัญชีมีสิทธิ์ใช้
+                if not selected_model and available_models:
+                    selected_model = available_models[0]
+
                 response = groq_client.chat.completions.create(
-                    model="gemma2-9b-it",
+                    model=selected_model,
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_query_payload}
