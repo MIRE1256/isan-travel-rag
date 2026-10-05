@@ -1,3 +1,4 @@
+
 import os
 import glob
 import streamlit as st
@@ -142,7 +143,7 @@ if user_prompt:
         with st.spinner("กำลังค้นหาข้อมูลจากคลังท่องเที่ยว 20 จังหวัดอีสาน..."):
             try:
                 response = groq_client.chat.completions.create(
-                    model="llama3-8b-8192",
+                    model="llama-3.1-8b-instant",
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_query_payload}
