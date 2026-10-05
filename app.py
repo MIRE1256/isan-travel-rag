@@ -14,13 +14,11 @@ st.set_page_config(
     layout="centered"
 )
 
-# Custom CSS ตกแต่งให้สวยงาม ดูสบายตา สไตล์มินิมอล
 st.markdown("""
 <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* กล่องหัวเรื่องหลัก */
     .hero-container {
         background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
         padding: 2.2rem 1.8rem;
@@ -43,7 +41,6 @@ st.markdown("""
         line-height: 1.5;
     }
     
-    /* กล่องปุ่มลัด */
     .quick-title {
         font-size: 0.95rem;
         font-weight: 600;
@@ -70,7 +67,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# แบนเนอร์หัวเว็บ
 st.markdown("""
 <div class="hero-container">
     <div class="hero-title">🧭 ไกด์ท่องเที่ยว 20 จังหวัดภาคอีสาน</div>
@@ -99,20 +95,26 @@ def build_vector_store():
     
     chunks = []
     chunk_metadata = []
-    chunk_size = 400
-    overlap = 80
 
+    # แบ่ง chunk ตามบรรทัดหรือส่วนของข้อมูลเพื่อรักษาความหมายของสถานที่แต่ละแห่ง
     for file_path in data_files:
         file_name = os.path.basename(file_path)
         with open(file_path, "r", encoding="utf-8") as f:
             text = f.read()
 
-        cleaned_text = " ".join(text.split())
-        for i in range(0, len(cleaned_text), chunk_size - overlap):
-            chunk = cleaned_text[i : i + chunk_size]
-            if len(chunk.strip()) > 30:
-                chunks.append(chunk)
-                chunk_metadata.append({"source": file_name, "snippet": chunk})
+        lines = [line.strip() for line in text.split("\n") if line.strip()]
+        current_chunk = ""
+        for line in lines:
+            if len(current_chunk) + len(line) < 300:
+                current_chunk += " " + line
+            else:
+                if len(current_chunk.strip()) > 20:
+                    chunks.append(current_chunk.strip())
+                    chunk_metadata.append({"source": file_name, "snippet": current_chunk.strip()})
+                current_chunk = line
+        if len(current_chunk.strip()) > 20:
+            chunks.append(current_chunk.strip())
+            chunk_metadata.append({"source": file_name, "snippet": current_chunk.strip()})
 
     if not chunks:
         return None, [], []
@@ -134,7 +136,7 @@ if index is None or len(doc_chunks) == 0:
     st.stop()
 
 # ----------------- Search Function -----------------
-def search_context(query: str, top_k: int = 5, threshold: float = 0.28):
+def search_context(query: str, top_k: int = 4):
     model = load_embedding_model()
     q_vec = model.encode([query], show_progress_bar=False)
     q_vec = np.array(q_vec, dtype="float32")
@@ -144,7 +146,7 @@ def search_context(query: str, top_k: int = 5, threshold: float = 0.28):
     results = []
 
     for score, idx in zip(distances[0], indices[0]):
-        if idx != -1 and score >= threshold:
+        if idx != -1:
             results.append({
                 "score": float(score),
                 "source": doc_meta[idx]["source"],
@@ -184,7 +186,7 @@ for idx, q in enumerate(sample_questions):
     if target_col.button(f"📌 {q}", key=f"btn_{idx}"):
         selected_query = q
 
-# ----------------- Render ประวัติการแชท (ไม่โชว์ Sources) -----------------
+# ----------------- Render ประวัติการแชท -----------------
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
@@ -198,26 +200,23 @@ if active_query:
     with st.chat_message("user"):
         st.markdown(active_query)
 
-    retrieved_docs = search_context(active_query, top_k=5)
+    retrieved_docs = search_context(active_query, top_k=4)
 
-    if not retrieved_docs:
-        context_str = "ไม่มีข้อมูลในคลังเอกสารที่เกี่ยวข้อง"
-    else:
-        context_blocks = [
-            f"[{doc['source']}]: {doc['content']}"
-            for doc in retrieved_docs
-        ]
-        context_str = "\n\n".join(context_blocks)
+    context_blocks = [
+        f"[{doc['source']}]: {doc['content']}"
+        for doc in retrieved_docs
+    ]
+    context_str = "\n".join(context_blocks)
 
     system_prompt = (
-        "คุณคือ AI ไกด์นำเที่ยวผู้เชี่ยวชาญ 20 จังหวัดภาคอีสาน อัธยาศัยดี สุภาพ เป็นกันเอง\n"
-        "แนวทางการตอบ:\n"
-        "1. ทักทายทั่วไป/พูดคุย: หากผู้ใช้ทักทาย เช่น 'สวัสดี', 'มีที่ไหนแนะนำบ้าง' ให้ตอบรับอย่างเป็นมิตร แนะนำตัวเองว่าเป็นไกด์นำเที่ยว 20 จังหวัดอีสาน และเชิญชวนให้บอกชื่อจังหวัดที่สนใจหรือสไตล์การเที่ยว\n"
-        "2. คำถามเจาะจงสถานที่/ร้าน/ของฝาก: ให้ตอบโดยยึดตาม 'บริบทที่ค้นพบ' (Context) เท่านั้น บอกพิกัดและเวลาเปิด-ปิดให้ชัดเจน เรียบเรียงให้อ่านง่าย สบายตา\n"
-        "3. สิ่งที่ไม่มีจริงในภาคอีสาน หรือไม่มีในบริบท: ให้ตอบสุภาพว่า 'ขออภัยครับ ไม่พบข้อมูลดังกล่าวในเอกสารท่องเที่ยว' ห้ามกุข้อมูลขึ้นมาเด็ดขาด"
+        "คุณคือ AI ไกด์นำเที่ยวผู้เชี่ยวชาญ 20 จังหวัดภาคอีสาน อัธยาศัยดี สุภาพ เป็นกันเอง\n\n"
+        "คำแนะนำในการตอบ:\n"
+        "1. ทักทาย/คุยทั่วไป: หากผู้ใช้ทักทาย เช่น สวัสดี ให้ตอบรับอย่างเป็นมิตร แนะนำตัวและเชิญชวนถามสถานที่ท่องเที่ยว\n"
+        "2. คำถามสถานที่ ร้านอาหาร ของฝาก: ให้ค้นหาคำตอบจาก 'ข้อมูลอ้างอิง' (Context) ที่ให้มา แล้วตอบรายละเอียด เช่น สถานที่ตั้ง เวลาเปิด-ปิด ให้ชัดเจน ครบถ้วน สละสลวย\n"
+        "3. สำหรับสถานที่หรือกิจกรรมที่ไม่มีจริงในภาคอีสาน หรือไม่มีในข้อมูลอ้างอิง (เช่น ดำน้ำดูปะการัง, กระเช้าลอยฟ้าข้ามภูเขาไฟ): ให้ตอบอย่างสุภาพว่า 'ขออภัยครับ ไม่พบข้อมูลดังกล่าวในเอกสารท่องเที่ยว' และชี้แจงสั้นๆ ว่าไม่มีกิจกรรมนี้ในจังหวัดดังกล่าว"
     )
 
-    user_query_payload = f"บริบทที่ค้นพบ (Context):\n{context_str}\n\nคำถามของผู้ใช้: {active_query}"
+    user_query_payload = f"ข้อมูลอ้างอิง (Context):\n{context_str}\n\nคำถาม: {active_query}"
 
     with st.chat_message("assistant"):
         with st.spinner("ไกด์กำลังค้นหาข้อมูลให้ครับ..."):
@@ -254,7 +253,6 @@ if active_query:
             except Exception as e:
                 st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อ Groq API: {str(e)}")
 
-    # จุดมาร์กเกอร์ด้านล่างสุด และสั่ง Scroll ลงมาทันทีที่มีการถามคำถาม
     st.markdown('<div id="chat-bottom"></div>', unsafe_allow_html=True)
     components.html(
         """
