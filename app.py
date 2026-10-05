@@ -9,18 +9,17 @@ from groq import Groq
 
 # ----------------- Configuration & Page Setup -----------------
 st.set_page_config(
-    page_title="ISAN Travel GuideBot - ไกด์ท่องเที่ยว 20 จังหวัดภาคอีสาน",
-    page_icon="🧭",
+    page_title="ไกด์นำเที่ยว 20 จังหวัดภาคอีสาน - ISAN AI Guide",
+    page_icon="🌾",
     layout="centered"
 )
 
-# Custom CSS ตกแต่งให้สวยงาม ดูสะอาด สไตล์โมเดิร์น
+# Custom CSS สไตล์มินิมอล โมเดิร์น สะอาดตา
 st.markdown("""
 <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* กล่องหัวเรื่องหลัก */
     .hero-container {
         background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
         padding: 2.2rem 1.8rem;
@@ -43,7 +42,6 @@ st.markdown("""
         line-height: 1.5;
     }
     
-    /* กล่องปุ่มคำถามแนะนำ */
     .quick-title {
         font-size: 0.95rem;
         font-weight: 600;
@@ -73,8 +71,8 @@ st.markdown("""
 # แบนเนอร์หัวเว็บ
 st.markdown("""
 <div class="hero-container">
-    <div class="hero-title">🧭 ไกด์ท่องเที่ยว 20 จังหวัดภาคอีสาน</div>
-    <div class="hero-subtitle">ผู้ช่วย AI อัจฉริยะ แนะนำพิกัดเที่ยว เวลาเปิด-ปิด ร้านอาหารเด็ด และของฝากประจำถิ่น</div>
+    <div class="hero-title">🌾 ไกด์ท่องเที่ยว 20 จังหวัดภาคอีสาน</div>
+    <div class="hero-subtitle">ผู้ช่วย AI อัจฉริยะ แนะนำพิกัดเที่ยว 12 แห่ง ร้านเด็ด 5 ร้าน ของฝาก และสิ่งที่ต้องไปเฮ็ดครบ 20 จังหวัด!</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -100,7 +98,6 @@ def build_vector_store():
     chunks = []
     chunk_metadata = []
 
-    # แบ่ง chunk ตามหัวข้อหรือบรรทัด เพื่อให้ข้อมูลของฝากและร้านอาหารอยู่ครบถ้วน
     for file_path in data_files:
         file_name = os.path.basename(file_path)
         with open(file_path, "r", encoding="utf-8") as f:
@@ -140,7 +137,6 @@ if index is None or len(doc_chunks) == 0:
     st.stop()
 
 # ----------------- Hybrid Search Function -----------------
-# รายชื่อ 20 จังหวัดภาคอีสาน
 ISAN_PROVINCES = [
     "นครราชสีมา", "โคราช", "ขอนแก่น", "อุดรธานี", "อุบลราชธานี", "นครพนม", "เลย",
     "หนองคาย", "ร้อยเอ็ด", "บุรีรัมย์", "บึงกาฬ", "สกลนคร", "สุรินทร์", "ศรีสะเกษ",
@@ -150,31 +146,20 @@ ISAN_PROVINCES = [
 def search_context(query: str, top_k: int = 5):
     results = []
     
-    # 1. Exact Province Keyword Search (ช่วยให้เจอของฝากและที่เที่ยวประจำจังหวัด 100%)
+    # 1. ค้นหาแบบตรงชื่อจังหวัดและประเภทข้อมูล (ที่เที่ยว, ร้านเด็ด, ของฝาก, สิ่งที่ต้องทำ)
     for meta in doc_meta:
         chunk_text = meta["snippet"]
         for prov in ISAN_PROVINCES:
             if prov in query:
-                # ถ้าคำถามถามถึงจังหวัดนั้น และท่อนข้อมูลมีเนื้อหาของจังหวัดนั้น
                 if prov in chunk_text or prov in meta["source"]:
-                    if any(kw in query for kw in ["ของฝาก", "ของดี", "ซื้อ"]) and "ของฝาก" in chunk_text:
-                        results.append({
-                            "score": 1.0,
-                            "source": meta["source"],
-                            "content": chunk_text
-                        })
-                    elif any(kw in query for kw in ["ร้านอาหาร", "ของกิน", "อาหาร"]) and "ร้านอาหาร" in chunk_text:
-                        results.append({
-                            "score": 1.0,
-                            "source": meta["source"],
-                            "content": chunk_text
-                        })
+                    if any(kw in query for kw in ["ของฝาก", "ของดี", "ซื้อ", "ของกินฝาก"]) and "ของฝาก" in chunk_text:
+                        results.append({"score": 1.0, "source": meta["source"], "content": chunk_text})
+                    elif any(kw in query for kw in ["ร้านอาหาร", "ของกิน", "อาหาร", "กินข้าว", "แซ่บ"]) and "ร้านอาหาร" in chunk_text:
+                        results.append({"score": 1.0, "source": meta["source"], "content": chunk_text})
+                    elif any(kw in query for kw in ["ต้องทำ", "ห้ามพลาด", "ต้องไปทำ", "ไฮไลท์"]) and "สิ่งที่เมื่อมาจังหวัดนี้แล้วต้องทำ" in chunk_text:
+                        results.append({"score": 1.0, "source": meta["source"], "content": chunk_text})
                     elif any(kw in query for kw in ["เปิด", "ปิด", "เวลา", "ตั้งอยู่", "พิกัด", "ที่เที่ยว", "สถานที่"]) and "สถานที่ท่องเที่ยว" in chunk_text:
-                        results.append({
-                            "score": 1.0,
-                            "source": meta["source"],
-                            "content": chunk_text
-                        })
+                        results.append({"score": 1.0, "source": meta["source"], "content": chunk_text})
 
     # 2. Vector Semantic Search
     model = load_embedding_model()
@@ -199,11 +184,11 @@ if "messages" not in st.session_state:
     st.session_state.messages = [
         {
             "role": "assistant",
-            "content": "สวัสดีครับ! ยินดีต้อนรับสู่แดนอีสานบ้านเฮา 🌾 ผมคือ AI ไกด์นำเที่ยวประจำ 20 จังหวัดภาคอีสานครับ สามารถสอบถามพิกัด ที่เที่ยว เวลาเปิด-ปิด ร้านอาหารเด็ด หรือของฝากขึ้นชื่อ พิมพ์ถามหรือคลิกปุ่มแนะนำด้านล่างได้เลยครับ!"
+            "content": "สบายดีครับพี่น้อง! ยินดีต้อนรับสู่แดนอีสานบ้านเฮาเด้อครับ 🌾 ข้อยคือ AI ไกด์นำเที่ยว 20 จังหวัดภาคอีสาน อยากไปเลาะไส ถามพิกัด ที่เที่ยว เวลาเปิด-ปิด ร้านอาหารแซ่บๆ ของฝาก หรือกิจกรรมเด็ดที่ต้องไปเฮ็ด พิมพ์ถามหรือจิ้มปุ่มคำถามแนะนำด้านบนได้เลยเด้อครับ!"
         }
     ]
 
-# ----------------- ปุ่มคำถามแนะนำยอดนิยม 10 คำถาม -----------------
+# ----------------- ปุ่มคำถามแนะนำยอดนิยม 12 ข้อ -----------------
 st.markdown('<div class="quick-title">💡 คำถามแนะนำยอดนิยม (คลิกเพื่อถามทันที):</div>', unsafe_allow_html=True)
 
 col1, col2 = st.columns(2)
@@ -215,7 +200,9 @@ sample_questions = [
     "วัดภูทอก บึงกาฬ เปิดกี่โมงและปิดช่วงไหน",
     "ของฝากขึ้นชื่อของยโสธรมีอะไรบ้าง",
     "สกายวอล์ค วัดผาตากเสื้อ หนองคาย อยู่ที่ไหน",
-    "ร้านขนมจีนประโดก ครูยอด โคราช อยู่ที่ไหน",
+    "ไปเที่ยวเลย มีอะไรที่ต้องทำหรือห้ามพลาดบ้าง",
+    "มาขอนแก่น ต้องไปทำกิจกรรมอะไรบ้างถึงจะเรียกว่ามาถึง",
+    "ร้านสเต็กเนื้อโคขุนโพนยางคำ สกลนคร ร้านไหนเด็ด",
     "มีทัวร์ดำน้ำดูปะการังที่กาฬสินธุ์ไหม",
     "กระเช้าลอยฟ้าขึ้นยอดภูเขาไฟร้อยเอ็ดราคาเท่าไหร่"
 ]
@@ -226,13 +213,13 @@ for idx, q in enumerate(sample_questions):
     if target_col.button(f"📌 {q}", key=f"btn_{idx}"):
         selected_query = q
 
-# ----------------- Render ประวัติการแชท (ไม่โชว์ Sources) -----------------
+# ----------------- Render ประวัติการแชท (ไม่แสดง Sources) -----------------
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
 # ----------------- รับ Input จาก Chat หรือ ปุ่มกด -----------------
-user_input = st.chat_input("พิมพ์คำถามเกี่ยวกับที่เที่ยวอีสานที่นี่...")
+user_input = st.chat_input("พิมพ์คำถามเกี่ยวกับที่เที่ยวอีสานที่นี่เด้อ...")
 active_query = selected_query if selected_query else user_input
 
 if active_query:
@@ -248,18 +235,22 @@ if active_query:
     ]
     context_str = "\n\n".join(context_blocks)
 
+    # ปรับ System Prompt ให้เป็น AI ไกด์อีสาน อารมณ์ดี เว้าม่วน
     system_prompt = (
-        "คุณคือ AI ไกด์นำเที่ยวผู้เชี่ยวชาญข้อมูล 20 จังหวัดภาคอีสานของประเทศไทย อัธยาศัยดี สุภาพ เป็นกันเอง\n\n"
+        "คุณคือ 'AI ไกด์นำเที่ยวอีสานบ้านเฮา' ผู้เชี่ยวชาญการท่องเที่ยว 20 จังหวัดภาคอีสานของประเทศไทย\n"
+        "บุคลิกและสไตล์การพูด:\n"
+        "- ร่าเริง อารมณ์ดี สุภาพ เป็นกันเอง มีสำเนียงและคำสร้อยแบบคนอีสาน เช่น 'เด้อครับ', 'น้อครับ', 'แซ่บหลาย', 'อีหลี', 'ไปเลาะ', 'เฮ็ด'\n"
+        "- ตอบเป็นภาษาไทยมาตรฐานที่แทรกคำอีสานอย่างน่ารัก อ่านเข้าใจง่าย สบายตา\n\n"
         "แนวทางการตอบ:\n"
-        "1. ทักทาย/คุยทั่วไป: หากผู้ใช้ทักทาย เช่น 'สวัสดี', 'มีที่ไหนแนะนำบ้าง' ให้ตอบรับอย่างเป็นมิตร แนะนำตัวเองว่าเป็นไกด์นำเที่ยว 20 จังหวัดอีสาน และเชิญชวนให้บอกชื่อจังหวัดที่สนใจหรือสไตล์การเที่ยว\n"
-        "2. คำถามสถานที่ ร้านอาหาร ของฝาก: ให้ตอบโดยยึดตาม 'ข้อมูลอ้างอิง' (Context) ที่ค้นพบ บอกรายละเอียดสถานที่ตั้งและเวลาเปิด-ปิดให้ชัดเจน เรียบเรียงให้อ่านง่าย สบายตา\n"
-        "3. สำหรับสถานที่หรือกิจกรรมที่ไม่มีจริงในภาคอีสาน หรือไม่มีในข้อมูลอ้างอิง (เช่น ดำน้ำดูปะการัง, กระเช้าลอยฟ้าข้ามภูเขาไฟ): ให้ตอบอย่างสุภาพว่า 'ขออภัยครับ ไม่พบข้อมูลดังกล่าวในเอกสารท่องเที่ยว' และชี้แจงสั้นๆ ว่าไม่มีกิจกรรมนี้ในจังหวัดดังกล่าว"
+        "1. ทักทาย/คุยทั่วไป: หากผู้ใช้ทักทาย ให้ตอบรับอย่างอบอุ่นแบบคนอีสาน ยินดีต้อนรับสู่แดนอีสานบ้านเฮา และเชิญชวนไปเลาะเที่ยว\n"
+        "2. คำถามสถานที่ ร้านอาหาร ของฝาก สิ่งที่ต้องไปทำ: ให้ตอบโดยยึดตาม 'ข้อมูลอ้างอิง' (Context) ที่ค้นพบเท่านั้น บอกชื่อ พิกัด เวลาเปิด-ปิด และกิจกรรมเด็ดให้ชัดเจน ครบถ้วน\n"
+        "3. สำหรับสถานที่หรือกิจกรรมที่ไม่มีจริงในภาคอีสาน หรือไม่มีในข้อมูลอ้างอิง (เช่น ดำน้ำดูปะการัง, กระเช้าลอยฟ้าข้ามภูเขาไฟ): ให้ตอบปฏิเสธอย่างสุภาพปนน่ารักว่า 'ขออภัยเด้อครับ ข้อยบ่พบข้อมูลนี้ในเอกสารท่องเที่ยว' และอธิบายสั้นๆ ว่าในจังหวัดนั้นไม่มีกิจกรรมดังกล่าวอีหลีครับ"
     )
 
     user_query_payload = f"ข้อมูลอ้างอิง (Context):\n{context_str}\n\nคำถาม: {active_query}"
 
     with st.chat_message("assistant"):
-        with st.spinner("ไกด์กำลังค้นหาข้อมูลให้ครับ..."):
+        with st.spinner("ไกด์กำลังฟ้าวหาข้อมูลให้เด้อครับ..."):
             try:
                 available_models = [
                     m.id for m in groq_client.models.list().data 
@@ -279,7 +270,7 @@ if active_query:
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_query_payload}
                     ],
-                    temperature=0.2,
+                    temperature=0.25,
                     max_tokens=650
                 )
                 bot_reply = response.choices[0].message.content
