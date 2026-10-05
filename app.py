@@ -1,6 +1,7 @@
 import os
 import glob
 import streamlit as st
+import streamlit.components.v1 as components
 import numpy as np
 import faiss
 from sentence_transformers import SentenceTransformer
@@ -16,7 +17,6 @@ st.set_page_config(
 # Custom CSS ตกแต่งให้สวยงาม ดูสบายตา สไตล์มินิมอล
 st.markdown("""
 <style>
-    /* ซ่อน header default บางส่วนเพื่อความคลีน */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
@@ -27,7 +27,7 @@ st.markdown("""
         border-radius: 18px;
         color: white;
         text-align: center;
-        margin-bottom: 1.8rem;
+        margin-bottom: 1.5rem;
         box-shadow: 0 8px 20px rgba(0,0,0,0.08);
     }
     .hero-title {
@@ -48,7 +48,7 @@ st.markdown("""
         font-size: 0.95rem;
         font-weight: 600;
         color: #475569;
-        margin-top: 1rem;
+        margin-top: 0.5rem;
         margin-bottom: 0.5rem;
     }
     .stButton>button {
@@ -70,7 +70,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# แบนเนอร์หัวเว็บสวยงาม
+# แบนเนอร์หัวเว็บ
 st.markdown("""
 <div class="hero-container">
     <div class="hero-title">🧭 ไกด์ท่องเที่ยว 20 จังหวัดภาคอีสาน</div>
@@ -253,3 +253,19 @@ if active_query:
 
             except Exception as e:
                 st.error(f"เกิดข้อผิดพลาดในการเชื่อมต่อ Groq API: {str(e)}")
+
+    # จุดมาร์กเกอร์ด้านล่างสุด และสั่ง Scroll ลงมาทันทีที่มีการถามคำถาม
+    st.markdown('<div id="chat-bottom"></div>', unsafe_allow_html=True)
+    components.html(
+        """
+        <script>
+            setTimeout(function() {
+                var el = window.parent.document.getElementById('chat-bottom');
+                if (el) {
+                    el.scrollIntoView({behavior: 'smooth', block: 'end'});
+                }
+            }, 300);
+        </script>
+        """,
+        height=0
+    )
